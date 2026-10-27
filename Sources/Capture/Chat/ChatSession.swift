@@ -24,6 +24,8 @@ final class ChatSession: ObservableObject {
     @Published private(set) var messages: [Message] = []
     @Published private(set) var isBusy = false
     @Published private(set) var pendingAction: PendingAction?
+    private var executingToolCalls = 0
+    var preventsOutsideDismissal: Bool { executingToolCalls > 0 || pendingAction != nil }
     private(set) var history: [ChatMessage] = []
     private(set) var currentTask: Task<Void, Never>?
     private let settings: AppSettings
@@ -242,6 +244,8 @@ final class ChatSession: ObservableObject {
     }
 
     private func runToolCalls(_ calls: [ChatToolCall], state: inout ResponseState) async throws -> CaptureResult? {
+        executingToolCalls += 1
+        defer { executingToolCalls -= 1 }
         var lastScreenshot: CaptureResult?
         var lastWasScreenshot = false
         for call in calls {

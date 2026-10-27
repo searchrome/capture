@@ -55,13 +55,14 @@ final class TranslationOverlay {
         view.closeOverlay = { [weak self] in self?.close() }
         let window = FloatingPanel(frame: FloatingPanel.appKitFrame(for: capture.rect), content: EmptyView())
         window.contentView = view
+        window.acceptsMouseMovedEvents = true
         window.hasShadow = false
         window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         window.identifier = NSUserInterfaceItemIdentifier("debugTranslationOverlay")
         overlay = window
         canvas = view
 
-        let pillSize = CGSize(width: 460, height: 42)
+        let pillSize = CGSize(width: 620, height: 42)
         let barFrame = ActionBar.frame(for: capture.rect, visibleFrame: screen.visibleFrame)
         let below = CGRect(
             x: barFrame.maxX - pillSize.width, y: barFrame.minY - pillSize.height - 6,
@@ -74,7 +75,8 @@ final class TranslationOverlay {
         let candidate = below.minY >= screen.visibleFrame.minY ? below : above
         let pillView = TranslationPill(
             state: state,
-            copy: { [weak self] in self?.copy(self?.state.fullTranslation ?? "") },
+            copyTranslation: { [weak self] in self?.copy(self?.state.fullTranslation ?? "") },
+            copyOriginal: { [weak self] in self?.copy(self?.state.original ?? "") },
             open: { [weak self] in self?.openAsText() },
             settings: openSettings,
             close: { [weak self] in self?.close() }
@@ -137,6 +139,7 @@ final class TranslationOverlay {
             canvas?.stopShimmer()
         }
         updateStatus()
+        canvas?.refreshToolTips()
         canvas?.needsDisplay = true
     }
 
@@ -205,10 +208,29 @@ final class TranslationOverlay {
 @MainActor
 private struct TranslationPill: View {
     @ObservedObject var state: OverlayState
-    let copy: () -> Void
+    let copyTranslation: () -> Void
+    let copyOriginal: () -> Void
     let open: () -> Void
     let settings: () -> Void
     let close: () -> Void
+    @State private var copied: CopyKind?
+    @State private var copyReset: Task<Void, Never>?
+
+    private enum CopyKind { case translation, original }
+
+    private func copy(_ kind: CopyKind) {
+        switch kind {
+        case .translation: copyTranslation()
+        case .original: copyOriginal()
+        }
+        copied = kind
+        copyReset?.cancel()
+        copyReset = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            copied = nil
+        }
+    }
 
     private var statusColor: Color {
         if state.error != nil { return .red }
@@ -224,10 +246,14 @@ private struct TranslationPill: View {
             Spacer(minLength: 2)
             if state.missingKey {
                 Button("Open Settings", action: settings)
-            } else {
-                Button("Copy", action: copy).disabled(state.fullTranslation.isEmpty)
-                Button("Open as text", action: open).disabled(state.fullTranslation.isEmpty)
             }
+            Button(copied == .translation ? "Copied ✓" : "Copy translation") {
+                copy(.translation)
+            }.disabled(state.fullTranslation.isEmpty)
+            Button(copied == .original ? "Copied ✓" : "Copy original") {
+                copy(.original)
+            }.disabled(state.original.isEmpty)
+            Button("Open as text", action: open).disabled(state.fullTranslation.isEmpty)
             Button("Close", action: close)
         }
         .padding(.horizontal, 10)
@@ -237,7 +263,7 @@ private struct TranslationPill: View {
 }
 
 @MainActor
-private final class TranslationCanvas: NSView {
+private final class TranslationCanvas: NSView, NSViewToolTipOwner {
     private let capture: CaptureResult
     private let state: OverlayState
     private let pixels: ImagePixels
@@ -247,6 +273,8 @@ private final class TranslationCanvas: NSView {
     private var optionHeld = NSEvent.modifierFlags.contains(.option)
     private var phase: CGFloat = 0
     private var colorCache: [String: (NSColor, NSColor)] = [:]
+    private var toolTipText: [NSView.ToolTipTag: String] = [:]
+    private var mouseTracking: NSTrackingArea?
     var copyTranslation: () -> Void = {}
     var copyOriginal: () -> Void = {}
     var openText: () -> Void = {}
@@ -300,6 +328,41 @@ private final class TranslationCanvas: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .arrow) }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let mouseTracking { removeTrackingArea(mouseTracking) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        mouseTracking = area
+    }
+
+    func refreshToolTips() {
+        removeAllToolTips()
+        toolTipText.removeAll()
+        for (index, block) in state.blocks.enumerated() {
+            guard let translation = block.translation else { continue }
+            let lines = translation.components(separatedBy: .newlines)
+            if lines.count == block.lines.count {
+                let drawings = lineDrawings(lines, block: block, index: index)
+                for (line, drawing) in zip(block.lines, drawings) {
+                    let tag = addToolTip(drawing.patch, owner: self, userData: nil)
+                    toolTipText[tag] = line.text
+                }
+            } else {
+                let rect = blockTextLayout(translation, in: block.rect, fontSize: block.estimatedFontSize,
+                                           centered: block.centered, colors: colors(for: block.rect, index: index)).rect
+                let tag = addToolTip(rect.insetBy(dx: -2, dy: -2), owner: self, userData: nil)
+                toolTipText[tag] = block.original
+            }
+        }
+    }
+
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint,
+              userData data: UnsafeMutableRawPointer?) -> String {
+        toolTipText[tag] ?? ""
+    }
+
     override func mouseDown(with event: NSEvent) {
         held = true
         needsDisplay = true
@@ -352,22 +415,7 @@ private final class TranslationCanvas: NSView {
             }
             let lines = translation.components(separatedBy: .newlines)
             if lines.count == block.lines.count {
-                let sizes = block.lines.map(\.estimatedFontSize).sorted()
-                let drawings = block.lines.enumerated().map { lineIndex, line in
-                    let similarSizes = sizes.filter { abs($0 - line.estimatedFontSize) <= line.estimatedFontSize * 0.25 }
-                    let middle = similarSizes.count / 2
-                    let median = similarSizes.count.isMultiple(of: 2)
-                        ? (similarSizes[middle - 1] + similarSizes[middle]) / 2 : similarSizes[middle]
-                    let lineColors = colors(for: line.rect, index: index, line: lineIndex)
-                    let space = availableSpace(
-                        for: line.rect, blockIndex: index, lineIndex: lineIndex,
-                        background: lineColors.0, centered: block.centered, singleLine: block.lines.count == 1
-                    )
-                    return prepareLine(
-                        lines[lineIndex], in: line.rect, available: space.rect,
-                        fontSize: median, centered: space.centered, colors: lineColors
-                    )
-                }
+                let drawings = lineDrawings(lines, block: block, index: index)
                 for drawing in drawings {
                     drawing.background.setFill()
                     NSBezierPath(roundedRect: drawing.patch, xRadius: 2, yRadius: 2).fill()
@@ -431,6 +479,23 @@ private final class TranslationCanvas: NSView {
         let attributes: [NSAttributedString.Key: Any]
     }
 
+    private func lineDrawings(_ lines: [String], block: TranslationBlock, index: Int) -> [LineDrawing] {
+        let sizes = block.lines.map(\.estimatedFontSize).sorted()
+        return block.lines.enumerated().map { lineIndex, line in
+            let similarSizes = sizes.filter { abs($0 - line.estimatedFontSize) <= line.estimatedFontSize * 0.25 }
+            let middle = similarSizes.count / 2
+            let median = similarSizes.count.isMultiple(of: 2)
+                ? (similarSizes[middle - 1] + similarSizes[middle]) / 2 : similarSizes[middle]
+            let lineColors = colors(for: line.rect, index: index, line: lineIndex)
+            let space = availableSpace(
+                for: line.rect, blockIndex: index, lineIndex: lineIndex,
+                background: lineColors.0, centered: block.centered, singleLine: block.lines.count == 1
+            )
+            return prepareLine(lines[lineIndex], in: line.rect, available: space.rect,
+                               fontSize: median, centered: space.centered, colors: lineColors)
+        }
+    }
+
     private func prepareLine(
         _ text: String, in rect: CGRect, available: CGRect, fontSize: CGFloat,
         centered: Bool, colors: (NSColor, NSColor)
@@ -477,6 +542,19 @@ private final class TranslationCanvas: NSView {
         _ text: String, in rect: CGRect, fontSize: CGFloat, centered: Bool,
         colors: (NSColor, NSColor)
     ) {
+        let layout = blockTextLayout(text, in: rect, fontSize: fontSize, centered: centered, colors: colors)
+        colors.0.setFill()
+        NSBezierPath(roundedRect: layout.rect.insetBy(dx: -2, dy: -2), xRadius: 2, yRadius: 2).fill()
+        (text as NSString).draw(
+            with: layout.rect, options: [.usesLineFragmentOrigin, .usesFontLeading, .truncatesLastVisibleLine],
+            attributes: layout.attributes
+        )
+    }
+
+    private func blockTextLayout(
+        _ text: String, in rect: CGRect, fontSize: CGFloat, centered: Bool,
+        colors: (NSColor, NSColor)
+    ) -> (rect: CGRect, attributes: [NSAttributedString.Key: Any]) {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = centered ? .center : .left
         paragraph.lineBreakMode = .byWordWrapping
@@ -498,13 +576,8 @@ private final class TranslationCanvas: NSView {
         }
         let height = min(max(rect.height, measured.height), rect.height * 1.4, bounds.maxY - rect.minY)
         let textRect = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: max(0, height))
-        colors.0.setFill()
-        NSBezierPath(roundedRect: textRect.insetBy(dx: -2, dy: -2), xRadius: 2, yRadius: 2).fill()
         if measured.height > height { paragraph.lineBreakMode = .byTruncatingTail }
-        (text as NSString).draw(
-            with: textRect, options: [.usesLineFragmentOrigin, .usesFontLeading, .truncatesLastVisibleLine],
-            attributes: attributes
-        )
+        return (textRect, attributes)
     }
 }
 

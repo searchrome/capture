@@ -21,6 +21,7 @@ final class ChatPanel: NSObject, NSWindowDelegate {
     var window: NSWindow? { panel }
     var frame: CGRect? { panel?.isVisible == true ? panel?.frame : nil }
     var isKey: Bool { panel?.isKeyWindow == true }
+    var preventsOutsideDismissal: Bool { session.preventsOutsideDismissal }
     func stop() { session.stop() }
 
     func show(avoiding: CGRect? = nil) {

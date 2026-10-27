@@ -3,6 +3,7 @@ import ApplicationServices
 
 @MainActor
 final class InputSynthesizer {
+    static let syntheticEventMarker: Int64 = 0x43617074757265
     static let accessibilityMessage =
         "Accessibility access is required to perform this action. Grant access in System Settings and try again."
 
@@ -42,6 +43,7 @@ final class InputSynthesizer {
                             )
                         else { throw ActionError(message: "Could not create mouse event.") }
                         event.setIntegerValueField(.mouseEventClickState, value: Int64(index))
+                        event.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEventMarker)
                         event.post(tap: .cghidEventTap)
                         postedClick = true
                     }

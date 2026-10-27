@@ -5,6 +5,7 @@ final class CaptureSessionUI {
     private var highlight: SelectionHighlight?
     private var bar: FloatingPanel?
     private var keyMonitor: Any?
+    private var mouseMonitor: Any?
     private var resultPanel: ResultPanel?
     private var translationOverlay: TranslationOverlay?
     private var chatPanel: ChatPanel?
@@ -60,6 +61,16 @@ final class CaptureSessionUI {
             if self.resultPanel?.isKey == true && self.translationOverlay == nil { return nil }
             self.dismiss()
             return nil
+        }
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) {
+            [weak self] event in
+            guard let self, self.chatPanel?.preventsOutsideDismissal != true else { return }
+            guard let cgEvent = event.cgEvent,
+                  cgEvent.getIntegerValueField(.eventSourceUserData) != InputSynthesizer.syntheticEventMarker else { return }
+            let point = cgEvent.location
+            let appKitPoint = CGPoint(x: point.x, y: (NSScreen.screens.first?.frame.height ?? 0) - point.y)
+            guard !NSApp.windows.contains(where: { $0.isVisible && $0.frame.contains(appKitPoint) }) else { return }
+            self.dismiss()
         }
     }
 
@@ -152,6 +163,8 @@ final class CaptureSessionUI {
         resultPanel = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
+        mouseMonitor = nil
         bar?.orderOut(nil)
         bar?.close()
         bar = nil
