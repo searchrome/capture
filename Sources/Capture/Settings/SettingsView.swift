@@ -52,6 +52,10 @@ struct SettingsView: View {
                     Text("LLM (OpenRouter)").tag(AppSettings.OCREngine.llm)
                     Text("On-device (Apple Vision)").tag(AppSettings.OCREngine.onDevice)
                 }
+                Picker("Show translation", selection: $settings.translationDisplay) {
+                    Text("Over the selection").tag(AppSettings.TranslationDisplay.overlay)
+                    Text("In a panel").tag(AppSettings.TranslationDisplay.panel)
+                }
                 Toggle("Auto-copy result", isOn: $settings.autoCopy)
                 Stepper("Max image side: \(settings.maxImageSide) px", value: $settings.maxImageSide,
                         in: 768...4096, step: 128)

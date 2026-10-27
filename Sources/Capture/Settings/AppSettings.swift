@@ -10,6 +10,8 @@ final class AppSettings: ObservableObject {
         case onDevice
     }
 
+    enum TranslationDisplay: String, CaseIterable { case overlay, panel }
+
     static let languages = [
         "English", "Turkish", "German", "French", "Spanish", "Italian",
         "Portuguese", "Dutch", "Russian", "Ukrainian", "Polish", "Greek",
@@ -28,6 +30,7 @@ final class AppSettings: ObservableObject {
     @Published var disableReasoning: Bool { didSet { defaults.set(disableReasoning, forKey: "disableReasoning") } }
     @Published var targetLanguage: String { didSet { defaults.set(targetLanguage, forKey: "targetLanguage") } }
     @Published var ocrEngine: OCREngine { didSet { defaults.set(ocrEngine.rawValue, forKey: "ocrEngine") } }
+    @Published var translationDisplay: TranslationDisplay { didSet { defaults.set(translationDisplay.rawValue, forKey: "translationDisplay") } }
     @Published var autoCopy: Bool { didSet { defaults.set(autoCopy, forKey: "autoCopy") } }
     @Published var maxImageSide: Int { didSet { defaults.set(maxImageSide, forKey: "maxImageSide") } }
     @Published var askBeforeActing: Bool { didSet { defaults.set(askBeforeActing, forKey: "askBeforeActing") } }
@@ -37,7 +40,7 @@ final class AppSettings: ObservableObject {
         defaults.register(defaults: [
             "visionModel": "qwen/qwen3.7-flash", "chatModel": "qwen/qwen3.7-flash",
             "disableReasoning": true, "targetLanguage": "English",
-            "ocrEngine": OCREngine.llm.rawValue, "autoCopy": true,
+            "ocrEngine": OCREngine.llm.rawValue, "translationDisplay": TranslationDisplay.overlay.rawValue, "autoCopy": true,
             "maxImageSide": 2048, "askBeforeActing": true
         ])
         hotkey = defaults.data(forKey: "hotkey")
@@ -47,6 +50,7 @@ final class AppSettings: ObservableObject {
         disableReasoning = defaults.bool(forKey: "disableReasoning")
         targetLanguage = defaults.string(forKey: "targetLanguage") ?? "English"
         ocrEngine = defaults.string(forKey: "ocrEngine").flatMap(OCREngine.init(rawValue:)) ?? .llm
+        translationDisplay = defaults.string(forKey: "translationDisplay").flatMap(TranslationDisplay.init(rawValue:)) ?? .overlay
         autoCopy = defaults.bool(forKey: "autoCopy")
         maxImageSide = defaults.integer(forKey: "maxImageSide")
         askBeforeActing = defaults.bool(forKey: "askBeforeActing")

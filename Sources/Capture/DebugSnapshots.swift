@@ -85,6 +85,8 @@ enum DebugSnapshots {
     private static func kind(of window: NSWindow) -> String {
         if window is SelectionHighlight { return "highlight" }
         if window.identifier?.rawValue == "debugActionBar" { return "action-bar" }
+        if window.identifier?.rawValue == "debugTranslationOverlay" { return "translation-overlay" }
+        if window.identifier?.rawValue == "debugTranslationPill" { return "translation-pill" }
         switch window.title {
         case "Capture Result": return "result"
         case "Capture Chat": return "chat"

@@ -6,6 +6,7 @@ final class CaptureSessionUI {
     private var bar: FloatingPanel?
     private var keyMonitor: Any?
     private var resultPanel: ResultPanel?
+    private var translationOverlay: TranslationOverlay?
     private var chatPanel: ChatPanel?
     private let extractText: () -> Void
     private let translate: () -> Void
@@ -39,6 +40,7 @@ final class CaptureSessionUI {
         #if DEBUG
         bar.identifier = NSUserInterfaceItemIdentifier("debugActionBar")
         #endif
+        bar.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 3)
         self.highlight = highlight
         self.bar = bar
         highlight.orderFrontRegardless()
@@ -53,7 +55,7 @@ final class CaptureSessionUI {
                 self.chatPanel?.stop()
                 return nil
             }
-            if self.resultPanel?.isKey == true { return nil }
+            if self.resultPanel?.isKey == true && self.translationOverlay == nil { return nil }
             self.dismiss()
             return nil
         }
@@ -69,6 +71,34 @@ final class CaptureSessionUI {
         resultPanel?.show(capture: capture, avoiding: chatPanel?.frame, title: title, model: model, stream: stream)
     }
 
+    func dismissTranslationOverlay() {
+        translationOverlay?.close()
+        translationOverlay = nil
+    }
+
+    func showTranslationOverlay(for capture: CaptureResult, openChat: @escaping (String) -> Void) {
+        dismissTranslationOverlay()
+        resultPanel?.close()
+        resultPanel = nil
+        let settings = AppSettings.shared
+        let target = settings.targetLanguage
+        let model = settings.visionModel
+        let overlay = TranslationOverlay(capture: capture, settings: settings, openSettings: openSettings,
+            openText: { [weak self] text in
+                let stream = AsyncThrowingStream<String, Error> { continuation in
+                    continuation.yield(text); continuation.finish()
+                }
+                self?.showResult(for: capture, title: "Translation → \(target)", model: model,
+                                 stream: stream, openChat: openChat)
+            }, fallback: { [weak self] in
+                self?.showResult(for: capture, title: "Translation → \(target) · No text found; using image",
+                                 model: model, stream: Translator(settings: settings).translate(from: capture),
+                                 openChat: openChat)
+            })
+        translationOverlay = overlay
+        overlay.show()
+    }
+
     func showChat(for capture: CaptureResult, seed: String?) {
         if chatPanel == nil { chatPanel = ChatPanel(capture: capture, seed: seed) }
         chatPanel?.show(avoiding: resultPanel?.frame)
@@ -79,6 +109,7 @@ final class CaptureSessionUI {
     #endif
 
     func dismiss() {
+        dismissTranslationOverlay()
         chatPanel?.close()
         chatPanel = nil
         resultPanel?.close()

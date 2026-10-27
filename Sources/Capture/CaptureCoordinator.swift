@@ -105,6 +105,11 @@ final class CaptureCoordinator {
     func translate() {
         guard let current else { return }
         let settings = AppSettings.shared
+        if settings.translationDisplay == .overlay {
+            sessionUI.showTranslationOverlay(for: current, openChat: { [weak self] in self?.openChat(seed: $0) })
+            return
+        }
+        sessionUI.dismissTranslationOverlay()
         sessionUI.showResult(for: current, title: "Translation → \(settings.targetLanguage)",
                              model: settings.visionModel,
                              stream: Translator(settings: settings).translate(from: current),
