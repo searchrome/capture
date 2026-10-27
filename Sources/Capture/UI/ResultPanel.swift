@@ -28,6 +28,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         self.openChat = openChat
     }
 
+    var window: NSWindow? { panel }
     var frame: CGRect? { panel?.isVisible == true ? panel?.frame : nil }
     var isKey: Bool { panel?.isKeyWindow == true }
 

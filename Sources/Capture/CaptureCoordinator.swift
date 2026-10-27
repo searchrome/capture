@@ -93,6 +93,29 @@ final class CaptureCoordinator {
         }
     }
 
+    func prepareSettings(window: NSWindow) {
+        guard let current, sessionUI.hasSession,
+              let screen = NSScreen.screens.first(where: { $0.captureDisplayID == current.displayID })
+                ?? FloatingPanel.screen(containing: current.rect) else {
+            window.center()
+            return
+        }
+        if let frame = FloatingPanel.settingsFrame(
+            selection: current.rect, screen: screen, size: window.frame.size, minimumSize: window.minSize,
+            avoiding: sessionUI.visibleFrames
+        ) {
+            window.setFrame(frame, display: false)
+        } else {
+            sessionUI.hideForSettings()
+            let bounds = screen.visibleFrame
+            let frame = CGRect(x: bounds.midX - window.frame.width / 2, y: bounds.midY - window.frame.height / 2,
+                               width: window.frame.width, height: window.frame.height)
+            window.setFrame(FloatingPanel.clampedFrame(frame, to: bounds), display: false)
+        }
+    }
+
+    func settingsDidClose() { sessionUI.restoreAfterSettings() }
+
     func extractText() {
         guard let current else { return }
         let settings = AppSettings.shared

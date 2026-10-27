@@ -42,6 +42,8 @@ final class TranslationOverlay {
         self.fallback = fallback
     }
 
+    var windows: [NSWindow] { [overlay, pill].compactMap { $0 } }
+
     func show() {
         guard let screen = NSScreen.screens.first(where: { $0.captureDisplayID == capture.displayID })
                 ?? FloatingPanel.screen(containing: capture.rect) else { return }

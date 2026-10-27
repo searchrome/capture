@@ -29,6 +29,9 @@ final class SelectionOverlayController {
             active.makeKeyAndOrderFront(nil)
             active.makeFirstResponder(active.contentView)
             NSCursor.crosshair.set()
+            #if DEBUG
+            NSLog("selection overlay shown on %d screens", windows.count)
+            #endif
         }
     }
 
@@ -54,8 +57,9 @@ private final class SelectionOverlayWindow: NSWindow {
 
     init(screen: NSScreen, image: CGImage, complete: @escaping (CGRect?) -> Void) {
         self.complete = complete
-        super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered,
-                   defer: false, screen: screen)
+        // The `screen:` variant calls init(contentRect:styleMask:backing:defer:), which this subclass
+        // does not inherit, so it traps at runtime. setFrame places the window on `screen` instead.
+        super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         setFrame(screen.frame, display: false)
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

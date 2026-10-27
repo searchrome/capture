@@ -18,6 +18,7 @@ final class ChatPanel: NSObject, NSWindowDelegate {
         session = ChatSession(capture: capture, seed: seed, settings: .shared)
     }
 
+    var window: NSWindow? { panel }
     var frame: CGRect? { panel?.isVisible == true ? panel?.frame : nil }
     var isKey: Bool { panel?.isKeyWindow == true }
     func stop() { session.stop() }

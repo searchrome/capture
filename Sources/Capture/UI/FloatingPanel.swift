@@ -150,6 +150,43 @@ class FloatingPanel: NSPanel {
         return clampedFrame(candidates[0], to: visibleFrame)
     }
 
+    /// Place Settings beside the selection, avoiding other session windows where possible.
+    static func settingsFrame(
+        selection: CGRect, screen: NSScreen, size: CGSize, minimumSize: CGSize, avoiding: [CGRect]
+    ) -> CGRect? {
+        let selectionFrame = appKitFrame(for: selection)
+        let screens = [screen] + NSScreen.screens.filter { $0 !== screen }
+        let gap: CGFloat = 8
+        for avoidWindows in [true, false] {
+            for candidateScreen in screens {
+                for size in [size, CGSize(width: size.width, height: minimumSize.height),
+                             CGSize(width: minimumSize.width, height: size.height), minimumSize] {
+                    let bounds = candidateScreen.visibleFrame
+                    guard size.width <= bounds.width, size.height <= bounds.height else { continue }
+                    let obstacles = [selectionFrame] + (avoidWindows ? avoiding : [])
+                    let xs = [bounds.minX, bounds.maxX - size.width, selectionFrame.maxX + gap,
+                              selectionFrame.minX - gap - size.width]
+                        + obstacles.flatMap { [$0.minX - gap - size.width, $0.maxX + gap] }
+                    let ys = [bounds.minY, bounds.maxY - size.height, selectionFrame.maxY - size.height,
+                              selectionFrame.minY - gap - size.height, selectionFrame.maxY + gap]
+                        + obstacles.flatMap { [$0.minY - gap - size.height, $0.maxY + gap] }
+                    let choices = xs.flatMap { x in
+                        ys.map { y in clampedFrame(CGRect(x: x, y: y, width: size.width, height: size.height), to: bounds) }
+                    }.filter { frame in !obstacles.contains(where: { $0.intersects(frame) }) }
+                    if let best = choices.min(by: { a, b in
+                        func distance(_ frame: CGRect) -> CGFloat {
+                            let dx = max(selectionFrame.minX - frame.maxX, frame.minX - selectionFrame.maxX, 0)
+                            let dy = max(selectionFrame.minY - frame.maxY, frame.minY - selectionFrame.maxY, 0)
+                            return dx * dx + dy * dy
+                        }
+                        return distance(a) < distance(b)
+                    }) { return best }
+                }
+            }
+        }
+        return nil
+    }
+
     static func clampedFrame(_ frame: CGRect, for selection: CGRect) -> CGRect {
         guard let screen = screen(containing: selection) else { return frame }
         return clampedFrame(frame, to: screen.visibleFrame)

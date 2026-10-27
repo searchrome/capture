@@ -8,6 +8,7 @@ final class CaptureSessionUI {
     private var resultPanel: ResultPanel?
     private var translationOverlay: TranslationOverlay?
     private var chatPanel: ChatPanel?
+    private var hiddenForSettings: [NSWindow]?
     private let extractText: () -> Void
     private let translate: () -> Void
     private let openChat: () -> Void
@@ -51,6 +52,7 @@ final class CaptureSessionUI {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard event.keyCode == 53 else { return event }
             guard let self else { return event }
+            if NSApp.keyWindow?.title == "Capture Settings" { return event }
             if self.chatPanel?.isKey == true {
                 self.chatPanel?.stop()
                 return nil
@@ -69,6 +71,7 @@ final class CaptureSessionUI {
             resultPanel = ResultPanel(settings: .shared, openSettings: openSettings, openChat: openChat)
         }
         resultPanel?.show(capture: capture, avoiding: chatPanel?.frame, title: title, model: model, stream: stream)
+        hideNewWindowsForSettings()
     }
 
     func dismissTranslationOverlay() {
@@ -97,11 +100,43 @@ final class CaptureSessionUI {
             })
         translationOverlay = overlay
         overlay.show()
+        hideNewWindowsForSettings()
     }
 
     func showChat(for capture: CaptureResult, seed: String?) {
         if chatPanel == nil { chatPanel = ChatPanel(capture: capture, seed: seed) }
         chatPanel?.show(avoiding: resultPanel?.frame)
+        hideNewWindowsForSettings()
+    }
+
+    private var windows: [NSWindow] {
+        [highlight, bar, resultPanel?.window, chatPanel?.window].compactMap { $0 }
+            + (translationOverlay?.windows ?? [])
+    }
+
+    var visibleFrames: [CGRect] { windows.filter(\.isVisible).map(\.frame) }
+    var hasSession: Bool { !windows.isEmpty }
+
+    func hideForSettings() {
+        guard hiddenForSettings == nil else { return }
+        hiddenForSettings = []
+        hideNewWindowsForSettings()
+    }
+
+    private func hideNewWindowsForSettings() {
+        guard hiddenForSettings != nil else { return }
+        for window in windows where window.isVisible {
+            hiddenForSettings?.append(window)
+            window.orderOut(nil)
+        }
+    }
+
+    func restoreAfterSettings() {
+        let currentWindows = windows
+        for window in hiddenForSettings ?? [] where currentWindows.contains(where: { $0 === window }) {
+            window.orderFrontRegardless()
+        }
+        hiddenForSettings = nil
     }
 
     #if DEBUG
@@ -109,6 +144,7 @@ final class CaptureSessionUI {
     #endif
 
     func dismiss() {
+        hiddenForSettings = nil
         dismissTranslationOverlay()
         chatPanel?.close()
         chatPanel = nil

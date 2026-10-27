@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeySubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installMainMenu()
         coordinator.openSettings = { [weak self] in self?.openSettings() }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "viewfinder", accessibilityDescription: "Capture")
@@ -43,7 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugSnapshots.scheduleQuit()
         let defaults = UserDefaults.standard
         if defaults.bool(forKey: "debugOpenSettings") { openSettings() }
-        if let value = defaults.string(forKey: "debugCaptureRect") {
+        if defaults.bool(forKey: "debugSelectionOverlay") {
+            coordinator.startCapture()
+        } else if let value = defaults.string(forKey: "debugCaptureRect") {
             let components = value.split(separator: ",", omittingEmptySubsequences: false)
             let parts = components.compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
             if components.count == 4, parts.count == 4, parts.allSatisfy({ $0.isFinite }), parts[2] > 0, parts[3] > 0 {
@@ -65,8 +68,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openSettings() {
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(settings: .shared)
+            settingsWindowController?.onClose = { [weak self] in self?.coordinator.settingsDidClose() }
+        }
+        if let window = settingsWindowController?.window, !window.isVisible {
+            coordinator.prepareSettings(window: window)
         }
         settingsWindowController?.show()
+    }
+
+    private func installMainMenu() {
+        let mainMenu = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About Capture", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit Capture", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        mainMenu.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        for (title, action, key, modifiers) in [
+            ("Undo", "undo:", "z", NSEvent.ModifierFlags.command),
+            ("Redo", "redo:", "z", [.command, .shift]),
+            ("Cut", "cut:", "x", .command),
+            ("Copy", "copy:", "c", .command),
+            ("Paste", "paste:", "v", .command),
+            ("Select All", "selectAll:", "a", .command)
+        ] {
+            let item = NSMenuItem(title: title, action: NSSelectorFromString(action), keyEquivalent: key)
+            item.keyEquivalentModifierMask = modifiers
+            editMenu.addItem(item)
+        }
+        editItem.submenu = editMenu
+        mainMenu.addItem(editItem)
+        NSApp.mainMenu = mainMenu
     }
 
     @objc private func quitCapture() {
