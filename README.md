@@ -113,6 +113,10 @@ individual approval.
   scanned PDFs may have no text layer. Use area capture and Image → Text instead.
 - **AI request fails:** check the saved key, account access, and selected model. Refresh the model
   list in Settings or enter another compatible model ID.
+- **Keychain access fails:** unlock your login keychain in Keychain Access, then use **Retry
+  Keychain** in Capture Settings. If an entry belongs to an older build, allow the current app
+  access or enter your API key and choose **Replace saved key…**. A Keychain failure happens
+  before a request reaches OpenRouter.
 - **No Dock icon:** this is expected. Settings and Quit are in the menu bar.
 - OCR, translations, and AI actions can make mistakes; review results and proposed input.
 

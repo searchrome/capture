@@ -138,6 +138,9 @@ chat completions, streaming SSE).
 SwiftUI `Form`, opened from the menu bar or the action bar:
 
 - OpenRouter API key (SecureField, saved to Keychain), "Test" button (GET `/api/v1/key` or `/models`).
+  Keychain read failures must not prevent saving a manually entered replacement. Show a local
+  Keychain error with retry guidance, verify saved keys can be read back, and offer an explicitly
+  confirmed replacement of an inaccessible entry. Never delete an entry just because loading failed.
 - Vision model (OCR/translate) and Chat model: pickers filled from `GET /api/v1/models`, filtered to
   models whose `architecture.input_modalities` contains "image", sorted by price, labelled with
   `$in / $out per 1M tokens`; plus a text field to type any model id. Defaults:

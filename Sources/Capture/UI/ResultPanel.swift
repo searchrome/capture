@@ -89,6 +89,7 @@ final class ResultPanel: NSObject, NSWindowDelegate {
                 self.state.streaming = false
                 self.state.error = error.localizedDescription
                 if case OpenRouterError.missingAPIKey = error { self.state.missingKey = true }
+                if error is Keychain.KeychainError { self.state.missingKey = true }
                 #if DEBUG
                 DebugSnapshots.writeText(error.localizedDescription, file: "result.txt")
                 DispatchQueue.main.async { DebugSnapshots.write(name: "result") }

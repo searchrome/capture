@@ -41,7 +41,17 @@ enum Keychain {
     struct KeychainError: LocalizedError {
         let status: OSStatus
         var errorDescription: String? {
-            SecCopyErrorMessageString(status, nil) as String? ?? "Keychain error (\(status))"
+            switch status {
+            case errSecAuthFailed, errSecInteractionNotAllowed:
+                return "macOS Keychain could not access the saved OpenRouter key (\(status)). "
+                    + "Unlock your login keychain in Keychain Access and retry. If Capture was rebuilt or re-signed, "
+                    + "allow the new app access, or enter your API key in Capture Settings and replace the saved key."
+            case errSecUserCanceled:
+                return "Keychain access was cancelled. Retry and allow Capture to access the saved OpenRouter key."
+            default:
+                let detail = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown error"
+                return "macOS Keychain error (\(status)): \(detail)"
+            }
         }
     }
 }
