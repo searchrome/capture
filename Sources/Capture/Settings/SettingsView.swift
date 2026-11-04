@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var visionSearch = ""
     @State private var chatSearch = ""
     @State private var recording = false
+    @State private var recordingDocument = false
     @State private var keyMonitor: Any?
     @State private var screenAccess = false
     @State private var accessibilityAccess = false
@@ -27,6 +28,30 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("Keyboard shortcuts") {
+                HStack {
+                    Text("Capture area")
+                    Spacer()
+                    Text(settings.hotkey.displayString)
+                    Button(recording && !recordingDocument ? "Cancel" : "Record") {
+                        if recording { stopRecording() } else { startRecording() }
+                    }
+                    Button("Reset") { stopRecording(); settings.hotkey = .default }
+                }
+                HStack {
+                    Text("Read document text")
+                    Spacer()
+                    Text(settings.documentHotkey.displayString)
+                    Button(recording && recordingDocument ? "Cancel" : "Record") {
+                        if recording { stopRecording() } else { startRecording(document: true) }
+                    }
+                    Button("Reset") { stopRecording(); settings.documentHotkey = .documentText }
+                }
+                if recording { Text("Press a key with a modifier…").foregroundStyle(.secondary) }
+                if let error = settings.hotkeyError { Text(error).foregroundStyle(.red) }
+                Text("Document text requires Accessibility access. Capture area requires Screen Recording access.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("OpenRouter") {
                 HStack {
                     SecureField("API key", text: $apiKey)
@@ -59,16 +84,6 @@ struct SettingsView: View {
                 Toggle("Auto-copy result", isOn: $settings.autoCopy)
                 Stepper("Max image side: \(settings.maxImageSide) px", value: $settings.maxImageSide,
                         in: 768...4096, step: 128)
-            }
-            Section("Hotkey") {
-                HStack {
-                    Text(recording ? "Press a key with a modifier…" : settings.hotkey.displayString)
-                    Spacer()
-                    Button(recording ? "Cancel" : "Record") { recording ? stopRecording() : startRecording() }
-                    Button("Reset to ⌘⇧6") { stopRecording(); settings.hotkey = .default }
-                }
-                Text("macOS may reserve ⌘⇧6 for Save picture of the Touch Bar. Change it in System Settings → Keyboard → Keyboard Shortcuts → Screenshots.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Agent") {
                 Toggle("Ask before acting", isOn: $settings.askBeforeActing)
@@ -168,9 +183,10 @@ struct SettingsView: View {
         }
     }
 
-    private func startRecording() {
+    private func startRecording(document: Bool = false) {
         guard keyMonitor == nil else { return }
         recording = true
+        recordingDocument = document
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             var modifiers: UInt32 = 0
@@ -179,7 +195,9 @@ struct SettingsView: View {
             if flags.contains(.option) { modifiers |= UInt32(optionKey) }
             if flags.contains(.control) { modifiers |= UInt32(controlKey) }
             guard modifiers != 0 else { return nil }
-            settings.hotkey = Hotkey(keyCode: UInt32(event.keyCode), modifiers: modifiers)
+            let hotkey = Hotkey(keyCode: UInt32(event.keyCode), modifiers: modifiers)
+            guard hotkey != (document ? settings.hotkey : settings.documentHotkey) else { NSSound.beep(); return nil }
+            if document { settings.documentHotkey = hotkey } else { settings.hotkey = hotkey }
             stopRecording()
             return nil
         }

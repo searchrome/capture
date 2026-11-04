@@ -8,6 +8,8 @@ struct Hotkey: Codable, Equatable {
 
     static let `default` = Hotkey(keyCode: UInt32(kVK_ANSI_6), modifiers: UInt32(cmdKey | shiftKey))
 
+    static let documentText = Hotkey(keyCode: UInt32(kVK_ANSI_7), modifiers: UInt32(cmdKey | optionKey))
+
     // Carbon virtual key codes describe physical keys, independent of modifier flags.
     var keyEquivalent: String {
         let keys: [UInt32: String] = [
@@ -54,6 +56,9 @@ final class HotkeyManager {
     private var hotkeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
     private var handler: (() -> Void)?
+    private let id: UInt32
+
+    init(id: UInt32 = 1) { self.id = id }
 
     @discardableResult
     func register(_ hotkey: Hotkey, handler: @escaping () -> Void) -> Bool {
@@ -65,7 +70,7 @@ final class HotkeyManager {
             let status = GetEventParameter(event, EventParamName(kEventParamDirectObject),
                                            EventParamType(typeEventHotKeyID), nil,
                                            MemoryLayout<EventHotKeyID>.size, nil, &hotkeyID)
-            guard status == noErr, hotkeyID.signature == HotkeyManager.signature, hotkeyID.id == 1 else {
+            guard status == noErr, hotkeyID.signature == HotkeyManager.signature, hotkeyID.id == Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue().id else {
                 return OSStatus(eventNotHandledErr)
             }
             // The application event target dispatches Carbon events on the main thread.
@@ -79,7 +84,7 @@ final class HotkeyManager {
             return false
         }
 
-        let hotkeyID = EventHotKeyID(signature: Self.signature, id: 1)
+        let hotkeyID = EventHotKeyID(signature: Self.signature, id: id)
         let status = RegisterEventHotKey(hotkey.keyCode, hotkey.modifiers, hotkeyID,
                                          GetApplicationEventTarget(), 0, &hotkeyRef)
         guard status == noErr else {

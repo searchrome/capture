@@ -22,6 +22,10 @@ final class AppSettings: ObservableObject {
 
     private let defaults: UserDefaults
 
+    @Published var hotkeyError: String?
+    @Published var documentHotkey: Hotkey {
+        didSet { defaults.set(try? JSONEncoder().encode(documentHotkey), forKey: "documentHotkey") }
+    }
     @Published var hotkey: Hotkey {
         didSet { defaults.set(try? JSONEncoder().encode(hotkey), forKey: "hotkey") }
     }
@@ -43,6 +47,8 @@ final class AppSettings: ObservableObject {
             "ocrEngine": OCREngine.llm.rawValue, "translationDisplay": TranslationDisplay.overlay.rawValue, "autoCopy": true,
             "maxImageSide": 2048, "askBeforeActing": true
         ])
+        documentHotkey = defaults.data(forKey: "documentHotkey")
+            .flatMap { try? JSONDecoder().decode(Hotkey.self, from: $0) } ?? .documentText
         hotkey = defaults.data(forKey: "hotkey")
             .flatMap { try? JSONDecoder().decode(Hotkey.self, from: $0) } ?? .default
         visionModel = defaults.string(forKey: "visionModel") ?? "qwen/qwen3.7-flash"

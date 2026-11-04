@@ -19,10 +19,12 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     private var streamTask: Task<Void, Never>?
     private var copiedTask: Task<Void, Never>?
     private let settings: AppSettings
+    private let captureArea: (() -> Void)?
     private let openSettings: () -> Void
-    private let openChat: (String) -> Void
+    private let openChat: ((String) -> Void)?
 
-    init(settings: AppSettings, openSettings: @escaping () -> Void, openChat: @escaping (String) -> Void) {
+    init(settings: AppSettings, openSettings: @escaping () -> Void, openChat: ((String) -> Void)?, captureArea: (() -> Void)? = nil) {
+        self.captureArea = captureArea
         self.settings = settings
         self.openSettings = openSettings
         self.openChat = openChat
@@ -33,6 +35,11 @@ final class ResultPanel: NSObject, NSWindowDelegate {
     var isKey: Bool { panel?.isKeyWindow == true }
 
     func show(capture: CaptureResult, avoiding: CGRect? = nil, title: String, model: String, stream: AsyncThrowingStream<String, Error>) {
+        show(rect: capture.rect, displayID: capture.displayID, avoiding: avoiding, title: title, model: model, stream: stream)
+    }
+
+    func show(rect: CGRect, displayID: CGDirectDisplayID, avoiding: CGRect? = nil, title: String, model: String,
+              stream: AsyncThrowingStream<String, Error>) {
         streamTask?.cancel()
         copiedTask?.cancel()
         state.title = title
@@ -43,12 +50,12 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         state.copied = false
         state.streaming = true
         if panel == nil {
-            guard let screen = NSScreen.screens.first(where: { $0.captureDisplayID == capture.displayID })
-                ?? FloatingPanel.screen(containing: capture.rect) else { return }
+            guard let screen = NSScreen.screens.first(where: { $0.captureDisplayID == displayID })
+                ?? FloatingPanel.screen(containing: rect) else { return }
             let view = ResultPanelView(state: state, copy: { [weak self] in self?.copyResult() },
-                                       chat: { [weak self] in self?.chat() },
-                                       settings: openSettings, close: { [weak self] in self?.close() })
-            let window = FloatingPanel(frame: FloatingPanel.frameBeside(selection: capture.rect, visibleFrame: screen.visibleFrame,
+                                       chat: openChat == nil ? nil : { [weak self] in self?.chat() },
+                                       settings: openSettings, captureArea: captureArea, close: { [weak self] in self?.close() })
+            let window = FloatingPanel(frame: FloatingPanel.frameBeside(selection: rect, visibleFrame: screen.visibleFrame,
                                                                          size: CGSize(width: 420, height: 300),
                                                                          minimumSize: CGSize(width: 280, height: 160), avoiding: avoiding),
                                        titled: true, content: view)
@@ -116,15 +123,16 @@ final class ResultPanel: NSObject, NSWindowDelegate {
         }
     }
 
-    private func chat() { openChat(state.text) }
+    private func chat() { openChat?(state.text) }
 }
 
 @MainActor
 private struct ResultPanelView: View {
     @ObservedObject var state: ResultState
     let copy: () -> Void
-    let chat: () -> Void
+    let chat: (() -> Void)?
     let settings: () -> Void
+    let captureArea: (() -> Void)?
     let close: () -> Void
 
     var body: some View {
@@ -144,9 +152,12 @@ private struct ResultPanelView: View {
                     if state.missingKey { Button("Open Settings", action: settings) }
                 }
             }
+            if state.error != nil, let captureArea {
+                Button("Capture an area…", action: captureArea)
+            }
             HStack {
                 Button(state.copied ? "Copied ✓" : "Copy", action: copy)
-                Button("Chat about this", action: chat)
+                if let chat { Button("Chat about this", action: chat) }
                 Spacer()
                 Button("Close", action: close)
             }

@@ -153,3 +153,23 @@ SwiftUI `Form`, opened from the menu bar or the action bar:
 - Agent: Ask before acting (default on). Permission status rows for Screen Recording and
   Accessibility with "Open System Settings" buttons.
 - Launch at login (`SMAppService.mainApp`).
+
+## Direct document text
+
+- Menu bar command **Read Active Document Text**, global shortcut **⌘⌥7**. Existing area
+  capture and its configurable shortcut (default ⌘⇧6) remain available.
+- Requires Accessibility access, but no Screen Recording permission or API key.
+- Targets the frontmost external app’s focused window. Reads a local PDF’s text layer with
+  PDFKit when its file URL is exposed; otherwise reads document text exposed by Accessibility.
+  This makes no network or AI request and does not take a screenshot.
+- Accessibility text may include only the portion the source app exposes. Traversal runs off
+  the main actor with time/depth/node limits, cancellation, and secure-field exclusion.
+  Partial reads are explicitly labelled and are not automatically copied.
+- Results are editable and support Copy and the existing auto-copy preference. If no text is
+  available (including scanned PDFs), an inline explanation offers **Capture an area…**;
+  the user can then choose the existing Image → Text action.
+- Settings starts with separate configurable recorders for Capture area and Read document text.
+  Both shortcuts persist; the recorder rejects duplicates. Registration failures are shown inline,
+  and menu commands remain available if a shortcut cannot be registered.
+- Files: `Features/DocumentTextReader.swift`, `Features/DocumentTextController.swift`;
+  the result panel also accepts placement coordinates without a screenshot.

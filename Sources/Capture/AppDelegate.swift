@@ -5,7 +5,9 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let coordinator = CaptureCoordinator()
+    private let documentReader = DocumentTextController()
     private let hotkeyManager = HotkeyManager()
+    private let documentHotkeyManager = HotkeyManager(id: 2)
     private var statusItem: NSStatusItem?
     private var captureItem: NSMenuItem?
     private var settingsWindowController: SettingsWindowController?
@@ -21,6 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let capture = NSMenuItem(title: "Capture Area", action: #selector(captureArea), keyEquivalent: "")
         capture.target = self
         menu.addItem(capture)
+        let readText = NSMenuItem(title: "Read Active Document Text", action: #selector(readDocumentText), keyEquivalent: Hotkey.documentText.keyEquivalent)
+        readText.keyEquivalentModifierMask = Hotkey.documentText.modifierMask
+        readText.target = self
+        menu.addItem(readText)
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -32,14 +38,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
         captureItem = capture
 
-        hotkeySubscription = AppSettings.shared.$hotkey.removeDuplicates().sink { [weak self] hotkey in
-            guard let self else { return }
-            self.captureItem?.keyEquivalent = hotkey.keyEquivalent
-            self.captureItem?.keyEquivalentModifierMask = hotkey.modifierMask
-            // Keep uncommon keys readable even if AppKit has no key equivalent for them.
-            self.captureItem?.title = hotkey.keyEquivalent.isEmpty ? "Capture Area \(hotkey.displayString)" : "Capture Area"
-            self.hotkeyManager.register(hotkey) { [weak self] in self?.coordinator.startCapture() }
-        }
+        hotkeySubscription = AppSettings.shared.$hotkey.combineLatest(AppSettings.shared.$documentHotkey)
+            .sink { [weak self] hotkey, documentHotkey in
+                guard let self else { return }
+                self.captureItem?.keyEquivalent = hotkey.keyEquivalent
+                self.captureItem?.keyEquivalentModifierMask = hotkey.modifierMask
+                self.captureItem?.title = hotkey.keyEquivalent.isEmpty ? "Capture Area \(hotkey.displayString)" : "Capture Area"
+                self.hotkeyManager.unregister()
+                self.documentHotkeyManager.unregister()
+                let captureRegistered = self.hotkeyManager.register(hotkey) { [weak self] in self?.coordinator.startCapture() }
+                readText.keyEquivalent = documentHotkey == hotkey ? "" : documentHotkey.keyEquivalent
+                readText.keyEquivalentModifierMask = documentHotkey.modifierMask
+                let textRegistered = documentHotkey != hotkey && self.documentHotkeyManager.register(documentHotkey) {
+                    [weak self] in self?.readDocumentText()
+                }
+                var errors: [String] = []
+                if !captureRegistered { errors.append("Capture shortcut is unavailable. Choose another shortcut.") }
+                if !textRegistered { errors.append("Document text shortcut is unavailable or conflicts with capture. Choose another shortcut, or use the menu command.") }
+                AppSettings.shared.hotkeyError = errors.isEmpty ? nil : errors.joined(separator: "\n")
+            }
         #if DEBUG
         DebugSnapshots.scheduleQuit()
         let defaults = UserDefaults.standard
@@ -59,6 +76,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyManager.unregister()
+        documentHotkeyManager.unregister()
+    }
+
+    @objc private func readDocumentText() {
+        documentReader.read(openSettings: { [weak self] in self?.openSettings() },
+                            captureArea: { [weak self] in self?.coordinator.startCapture() })
     }
 
     @objc private func captureArea() {
