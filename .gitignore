@@ -3,3 +3,15 @@ build/
 .swiftpm/
 .DS_Store
 .claude/
+
+# Local credentials and signing material
+.env
+.env.*
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+
+# Local debug captures and transcripts
+debug-snapshots/
+capture-debug/
