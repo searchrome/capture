@@ -22,6 +22,7 @@ final class AppSettings: ObservableObject {
 
     private let defaults: UserDefaults
 
+    @Published var apiKeyRequired = false
     @Published var hotkeyError: String?
     @Published var documentHotkey: Hotkey {
         didSet { defaults.set(try? JSONEncoder().encode(documentHotkey), forKey: "documentHotkey") }

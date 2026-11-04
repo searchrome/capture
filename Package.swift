@@ -16,7 +16,8 @@ let package = Package(
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("Security")
             ]
-        )
+        ),
+        .testTarget(name: "CaptureTests", dependencies: ["Capture"])
     ],
     swiftLanguageVersions: [.v5]
 )

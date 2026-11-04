@@ -22,6 +22,8 @@ jobs:
         run: swift --version
       - name: Build debug
         run: swift build
+      - name: Test missing API key handling
+        run: swift test
       - name: Build and verify release app
         env:
           CODESIGN_IDENTITY: "-"

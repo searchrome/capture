@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var accessibilityAccess = false
     @State private var loginEnabled = false
     @State private var loginError = ""
+    @FocusState private var apiKeyFocused: Bool
 
     var body: some View {
         Form {
@@ -55,8 +56,13 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("OpenRouter") {
+                if settings.apiKeyRequired {
+                    Text("Your OpenRouter API key is empty. Add a key below to use AI chat, translation, or AI text extraction, then try the action again. On-device text extraction does not need a key.")
+                        .foregroundStyle(.red)
+                }
                 HStack {
                     SecureField("API key", text: $apiKey)
+                        .focused($apiKeyFocused)
                         .onSubmit { saveKey() }
                     Button(testingKey ? "Testing…" : "Test") { testKey() }
                         .disabled(testingKey)
@@ -116,10 +122,14 @@ struct SettingsView: View {
         }
         .onAppear {
             loadKey()
+            if settings.apiKeyRequired { apiKeyFocused = true }
             updateStatus()
             loadModels()
         }
         .onDisappear { stopRecording(); saveKey() }
+        .onReceive(settings.$apiKeyRequired) { required in
+            if required { apiKeyFocused = true }
+        }
         .onChange(of: apiKey) { _, _ in
             guard keyLoaded || !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             keySaveTask?.cancel()
@@ -184,6 +194,9 @@ struct SettingsView: View {
             keyLoaded = true
             keychainFailed = false
             keyStatus = ""
+            if !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                settings.apiKeyRequired = false
+            }
         } catch {
             keyLoaded = false
             keychainFailed = true
@@ -210,6 +223,7 @@ struct SettingsView: View {
             keyLoaded = true
             keychainFailed = false
             keyStatus = value.isEmpty ? "Key removed." : "Saved to Keychain."
+            if !value.isEmpty { settings.apiKeyRequired = false }
             return true
         } catch {
             keychainFailed = true

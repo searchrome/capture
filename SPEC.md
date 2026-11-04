@@ -26,6 +26,10 @@ chat completions, streaming SSE).
     `security find-identity -v -p codesigning`, else ad-hoc (`-`). A stable identity matters:
     macOS ties the Screen Recording / Accessibility grants to the signature.
 - `scripts/run.sh` = build debug + `open build/Capture.app` (kills a running instance first).
+- `scripts/build-dmg.sh` builds release and packages `Capture.app`, an Applications shortcut,
+  the MIT license, and install instructions in `build/Capture-<version>-<architecture>.dmg`.
+  Verifies the compressed disk image and writes a matching SHA-256 checksum. Packaging does
+  not notarize the app; public distribution still needs Developer ID signing and notarization.
 - Bundle id `com.sozay.capture`, `LSUIElement = true` (menu bar only, no Dock icon).
 
 ## Architecture (Sources/Capture/)
@@ -101,6 +105,9 @@ chat completions, streaming SSE).
   `autoCopy` (default true) copy to the clipboard and show "Copied" briefly.
 - Errors (no API key, HTTP errors, network) show inline in the panel with a "Open Settings" button
   when the key is missing.
+- An AI request with no saved API key opens Settings automatically, focuses the key field,
+  and explains that the key is required. Saving a nonempty key clears the notice; the user
+  can then retry the action. On-device OCR and direct document reading do not trigger this flow.
 
 ## AI Chat
 

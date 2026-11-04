@@ -19,14 +19,16 @@ never add them to source, fixtures, or environment files.
 
 ```sh
 swift build
+swift test
 scripts/build-app.sh release
 git diff --check
 ```
 
-There is currently no automated test target. Manually exercise affected paths and record the
+Automated tests cover missing API key handling without real keys or network requests.
+Manually exercise affected paths and record the
 results: capture/cancellation, display placement, local OCR, translation, chat cancellation,
 action approvals, document reading, or permission-denied states as relevant. AI checks need
-your own key. Build-only CI cannot validate UI, permissions, or live AI responses.
+your own key. CI cannot validate UI, permissions, or live AI responses.
 
 Keep each pull request focused. Explain the problem, resulting behavior, and validation.
 Include screenshots for visual changes using non-sensitive sample content. Update documentation

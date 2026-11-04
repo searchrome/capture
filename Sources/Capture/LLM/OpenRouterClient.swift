@@ -21,7 +21,11 @@ enum OpenRouterError: LocalizedError {
 final class OpenRouterClient {
     static let baseURL = URL(string: "https://openrouter.ai/api/v1")!
     private let session: URLSession
-    init(session: URLSession = .shared) { self.session = session }
+    private let readAPIKey: () throws -> String?
+    init(session: URLSession = .shared, readAPIKey: @escaping () throws -> String? = Keychain.read) {
+        self.session = session
+        self.readAPIKey = readAPIKey
+    }
 
     func stream(_ request: ChatRequest) -> AsyncThrowingStream<StreamEvent, Error> {
         AsyncThrowingStream { continuation in
@@ -30,7 +34,7 @@ final class OpenRouterClient {
                     var request = request
                     var retried = false
                     while true {
-                        var urlRequest = try authorizedRequest(path: "chat/completions", method: "POST")
+                        var urlRequest = try await authorizedRequest(path: "chat/completions", method: "POST")
                         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
                         urlRequest.httpBody = try JSONEncoder().encode(request)
                         let (bytes, response) = try await session.bytes(for: urlRequest)
@@ -90,7 +94,8 @@ final class OpenRouterClient {
 
     func testKey() async throws -> String {
         do {
-            let (data, response) = try await session.data(for: authorizedRequest(path: "key", method: "GET"))
+            let request = try await authorizedRequest(path: "key", method: "GET")
+            let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse else { throw OpenRouterError.invalidResponse }
             guard (200..<300).contains(response.statusCode) else {
                 throw OpenRouterError.httpStatus(response.statusCode, Self.errorMessage(data))
@@ -104,8 +109,9 @@ final class OpenRouterClient {
         catch { throw OpenRouterError.network(error) }
     }
 
-    private func authorizedRequest(path: String, method: String) throws -> URLRequest {
-        guard let key = try Keychain.read(), !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    private func authorizedRequest(path: String, method: String) async throws -> URLRequest {
+        guard let key = try readAPIKey(), !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            await MainActor.run { AppSettings.shared.apiKeyRequired = true }
             throw OpenRouterError.missingAPIKey
         }
         var request = URLRequest(url: Self.baseURL.appendingPathComponent(path))

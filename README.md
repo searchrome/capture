@@ -21,6 +21,15 @@ Built with SwiftUI and AppKit. No third-party dependencies. [MIT licensed](LICEN
 - Xcode 15.3+ or a compatible Swift 5.10+ toolchain and macOS SDK. The package uses Swift 5 language mode.
 - Your own OpenRouter API key for translation, chat, and LLM image-to-text. Local OCR and direct document reading do not need a key.
 
+## Install from a disk image
+
+If a release provides a DMG for your Mac's architecture, open it, drag **Capture.app** to
+**Applications**, eject the disk image, and open Capture from Applications. The app appears
+in the menu bar. Follow the first-run setup below for permissions and optional AI features.
+
+The packaging script creates a local disk image; it does not notarize the app. Public releases
+need Developer ID signing and notarization to pass normal macOS download security checks.
+
 ## Build and run
 
 From a local checkout:
@@ -37,6 +46,14 @@ Build a release app without launching it:
 ```sh
 scripts/build-app.sh release
 ```
+
+To package a release app in a drag-and-drop disk image, including the license and a SHA-256 checksum:
+
+```sh
+scripts/build-dmg.sh
+```
+
+The output is `build/Capture-<version>-<architecture>.dmg` and a matching `.dmg.sha256` file.
 
 Check compilation without assembling an app bundle:
 
@@ -113,6 +130,9 @@ individual approval.
   scanned PDFs may have no text layer. Use area capture and Image → Text instead.
 - **AI request fails:** check the saved key, account access, and selected model. Refresh the model
   list in Settings or enter another compatible model ID.
+- **API key is empty:** trying an AI feature opens Settings and focuses the key field with
+  an explanation. Add your key, then retry the action. On-device OCR and document reading
+  continue to work without a key.
 - **Keychain access fails:** unlock your login keychain in Keychain Access, then use **Retry
   Keychain** in Capture Settings. If an entry belongs to an older build, allow the current app
   access or enter your API key and choose **Replace saved key…**. A Keychain failure happens

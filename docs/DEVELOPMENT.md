@@ -46,6 +46,7 @@ before sharing it. These debug flags are compiled out of release builds.
 ## Validation
 
 Run `swift build` and `scripts/build-app.sh release` to check both configurations, bundle
-assembly, and local signature. There is no automated test target yet. GitHub Actions runs
-these checks without a key or GUI permissions. Manual UI, permission, multi-monitor, and
+assembly, and local signature. Run `swift test` for missing-key regression tests, which use
+injected key reads and reject network requests. GitHub Actions runs these checks without
+a key or GUI permissions. Manual UI, permission, multi-monitor, and
 provider checks remain necessary for changes affecting those features.

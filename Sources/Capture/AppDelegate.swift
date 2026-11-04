@@ -12,10 +12,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var captureItem: NSMenuItem?
     private var settingsWindowController: SettingsWindowController?
     private var hotkeySubscription: AnyCancellable?
+    private var apiKeySubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
         coordinator.openSettings = { [weak self] in self?.openSettings() }
+        apiKeySubscription = AppSettings.shared.$apiKeyRequired.dropFirst().sink { [weak self] required in
+            guard required else { return }
+            Task { @MainActor [weak self] in self?.openSettings() }
+        }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "viewfinder", accessibilityDescription: "Capture")
         item.button?.image?.isTemplate = true
